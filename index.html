@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEO-WAKE ZEN</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+        body { background-color: #000; color: #00ff41; font-family: 'Fira Code', monospace; height: 100vh; overflow: hidden; }
+        .lcd-clock { font-size: 4rem; text-shadow: 0 0 15px rgba(0, 255, 65, 0.5); }
+        .matrix-border { border: 1px solid #003b00; box-shadow: inset 0 0 20px rgba(0,255,65,0.05); }
+        .scanline { width: 100%; height: 2px; background: rgba(0,255,65,0.05); position: absolute; animation: scan 8s linear infinite; pointer-events: none; }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        .pulse-soft { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="flex flex-col p-6 relative select-none">
+    <div class="scanline"></div>
+
+    <header class="mb-2">
+        <p class="text-[9px] font-bold tracking-widest opacity-60">> CORE_V2: ZEN_PROTOCOL_ACTIVE</p>
+        <div class="h-[1px] bg-green-900 w-full"></div>
+    </header>
+
+    <div class="flex-grow flex flex-col justify-center items-center matrix-border rounded-3xl bg-black/40 my-6">
+        <div id="clock" class="lcd-clock font-bold">00:00</div>
+        <p id="status" class="text-[10px] mt-4 uppercase tracking-[0.3em] text-green-700">> CALM_STATE</p>
+    </div>
+
+    <div class="mb-8 px-2">
+        <p class="text-[10px] text-center opacity-40 uppercase italic">Ridică telefonul ușor pentru a confirma trezirea</p>
+    </div>
+
+    <button id="mainBtn" onclick="initSystem()" class="border border-green-500 text-green-500 w-full py-5 font-bold rounded-full transition-all active:bg-green-500 active:text-black">
+        START ZEN PROTOCOL
+    </button>
+
+    <script>
+        let audioCtx = null;
+        let isArmed = false;
+        let isRinging = false;
+        let chimeInterval = null;
+
+        function updateClock() {
+            const n = new Date();
+            document.getElementById('clock').innerText = n.toLocaleTimeString('ro-RO', {hour12:false, hour:'2-digit', minute:'2-digit'});
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function initSystem() {
+            if (!isArmed) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                isArmed = true;
+                document.getElementById('mainBtn').innerText = "SYSTEM ARMED";
+                document.getElementById('mainBtn').classList.add('pulse-soft');
+                document.getElementById('status').innerText = "> MONITORING_PEACEFULLY...";
+                
+                // Test: declanșare după 5 secunde
+                setTimeout(() => { if(isArmed) startZenChime(); }, 5000);
+            } else {
+                stopEverything();
+            }
+        }
+
+        function createSoftChime(freq, startTime, duration) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine'; // Undă fină, prietenoasă
+            osc.frequency.setValueAtTime(freq, startTime);
+            
+            // Efect de Fade-in și Fade-out (Clopoțel)
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(0.2, startTime + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start(startTime);
+            osc.stop(startTime + duration);
+        }
+
+        function startZenChime() {
+            if (isRinging) return;
+            isRinging = true;
+            document.getElementById('status').innerText = "!!! WAKE_UP_GENTLY !!!";
+            document.getElementById('status').style.color = "#fff";
+            
+            // Redă un sunet de clopoțel la fiecare 2 secunde
+            chimeInterval = setInterval(() => {
+                const now = audioCtx.currentTime;
+                createSoftChime(440, now, 1.5);    // Nota La
+                createSoftChime(554.37, now + 0.5, 1.5); // Nota Do# (Acord major, vesel)
+            }, 2000);
+
+            window.addEventListener('devicemotion', handleMotion);
+        }
+
+        function handleMotion(event) {
+            const acc = event.accelerationIncludingGravity;
+            if(!acc) return;
+            
+            const force = Math.sqrt(acc.x**2 + acc.y**2 + acc.z**2);
+            // Prag de sensibilitate pentru ridicare fină
+            if (force > 13 || force < 7) { 
+                stopEverything();
+            }
+        }
+
+        function stopEverything() {
+            isArmed = false;
+            isRinging = false;
+            if (chimeInterval) clearInterval(chimeInterval);
+            
+            document.getElementById('mainBtn').innerText = "START ZEN PROTOCOL";
+            document.getElementById('mainBtn').classList.remove('pulse-soft');
+            document.getElementById('status').innerText = "> GREETINGS_NEO";
+            document.getElementById('status').style.color = "";
+            window.removeEventListener('devicemotion', handleMotion);
+            
+            // Feedback tactil la oprire (dacă telefonul suportă)
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+    </script>
+</body>
+</html>
